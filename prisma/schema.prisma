@@ -1,0 +1,416 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum Seccao {
+  EXPLORADORES
+  PIONEIROS
+  CAMINHEIROS
+}
+
+enum InscricaoStatus {
+  PENDENTE
+  CONFIRMADA
+  CANCELADA
+}
+
+enum EncomendaStatus {
+  PENDENTE
+  PAGA
+  ENVIADA
+  ENTREGUE
+  CANCELADA
+}
+
+// ============================================================
+// AUTENTICAÇÃO E UTILIZADORES
+// ============================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+
+  role Role @default(USER)
+
+  agrupamentoId String?
+  agrupamento   Agrupamento? @relation(fields: [agrupamentoId], references: [id], onDelete: SetNull)
+
+  accounts Account[]
+  sessions Session[]
+
+  constelacoesCriadas Constelacao[] @relation("ConstelacaoCriadaPor")
+  encomendas          Encomenda[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agrupamentoId])
+  @@index([role])
+  @@map("users")
+}
+
+model Account {
+  id                String @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+
+  refresh_token String? @db.Text
+  access_token  String? @db.Text
+  expires_at    Int?
+  token_type    String?
+  scope         String?
+  id_token      String? @db.Text
+  session_state String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================
+// AGRUPAMENTOS
+// ============================================================
+
+model Agrupamento {
+  id     String  @id @default(cuid())
+  numero String  @unique
+  nome   String?
+
+  users        User[]
+  constelacoes Constelacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agrupamentos")
+}
+
+// ============================================================
+// CONSTELAÇÕES E INSCRIÇÕES
+// ============================================================
+
+model Constelacao {
+  id   String @id @default(cuid())
+  nome String
+
+  responsavelNome     String
+  responsavelEmail    String
+  responsavelTelefone String
+
+  guiaEmail    String
+  guiaTelefone String
+
+  status InscricaoStatus @default(PENDENTE)
+
+  agrupamentoId String
+  agrupamento   Agrupamento @relation(fields: [agrupamentoId], references: [id], onDelete: Cascade)
+
+  criadoPorId String?
+  criadoPor   User?   @relation("ConstelacaoCriadaPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+
+  elementos Elemento[]
+
+  nomePool NomePool?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agrupamentoId, status])
+  @@index([criadoPorId])
+  @@map("constelacoes")
+}
+
+model Elemento {
+  id     String @id @default(cuid())
+  nome   String
+  seccao Seccao
+
+  dataNascimento DateTime @db.Date
+  isGuia         Boolean  @default(false)
+
+  constelacaoId String
+  constelacao   Constelacao @relation(fields: [constelacaoId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([constelacaoId])
+  @@map("elementos")
+}
+
+// ============================================================
+// NOMES DISPONÍVEIS
+// ============================================================
+
+model NomePool {
+  id   String @id @default(cuid())
+  nome String @unique
+
+  constelacaoId String?      @unique
+  constelacao   Constelacao? @relation(fields: [constelacaoId], references: [id], onDelete: SetNull)
+
+  @@map("nomes_pool")
+}
+
+// ============================================================
+// CONFIGURAÇÕES DE INSCRIÇÃO
+// ============================================================
+
+model ConfiguracaoInscricao {
+  id String @id @default("singleton")
+
+  preInscricoesInicio DateTime?
+  preInscricoesFim    DateTime?
+
+  inscricoesInicio DateTime?
+  inscricoesFim    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("configuracao_inscricao")
+}
+
+// ============================================================
+// LOJA — PRODUTOS
+// ============================================================
+
+model Produto {
+  id        Int     @id @default(autoincrement())
+  nome      String
+  slug      String  @unique
+  descricao String? @db.Text
+
+  // Preço em cêntimos.
+  precoCents Int
+
+  // Número da edição.
+  edicao Int
+
+  imagens String[] @default([])
+  ativo   Boolean  @default(true)
+
+  variantes VarianteProduto[]
+  packItens PackItem[]
+
+  encomendaItens       EncomendaItem[]
+  encomendaComponentes EncomendaItemComponente[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([edicao, ativo])
+  @@map("produtos")
+}
+
+// ============================================================
+// LOJA — VARIANTES E STOCK
+// ============================================================
+
+model VarianteProduto {
+  id Int @id @default(autoincrement())
+
+  // Usar "UNICO" para artigos sem tamanho.
+  // Evita múltiplos valores NULL na constraint de unicidade.
+  tamanho String @default("UNICO")
+
+  stock Int @default(0)
+
+  produtoId Int
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  encomendaItens EncomendaItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([produtoId, tamanho])
+  @@map("variantes_produto")
+}
+
+// ============================================================
+// LOJA — PACKS
+// ============================================================
+
+model Pack {
+  id        Int     @id @default(autoincrement())
+  nome      String
+  slug      String  @unique
+  descricao String? @db.Text
+
+  // Preço em cêntimos.
+  precoCents Int
+
+  // Número da edição.
+  edicao Int
+
+  imagemUrl String?
+  ativo     Boolean @default(true)
+
+  itens          PackItem[]
+  encomendaItens EncomendaItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([edicao, ativo])
+  @@map("packs")
+}
+
+model PackItem {
+  id         Int @id @default(autoincrement())
+  quantidade Int @default(1)
+
+  packId Int
+  pack   Pack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  produtoId Int
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+
+  @@unique([packId, produtoId])
+  @@index([produtoId])
+  @@map("pack_itens")
+}
+
+// ============================================================
+// LOJA — ENCOMENDAS
+// ============================================================
+
+enum EncomendaItemTipo {
+  PRODUTO
+  PACK
+}
+
+model Encomenda {
+  id     String @id @default(cuid())
+  numero Int    @unique @default(autoincrement())
+
+  clienteNome     String
+  clienteEmail    String
+  clienteTelefone String
+
+  moradaLinha  String
+  codigoPostal String
+  cidade       String
+
+  status     EncomendaStatus @default(PENDENTE)
+  totalCents Int
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  itens EncomendaItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("encomendas")
+}
+
+// ============================================================
+// LOJA — LINHAS DE ENCOMENDA
+// ============================================================
+
+model EncomendaItem {
+  id Int @id @default(autoincrement())
+
+  quantidade     Int
+  precoUnitCents Int
+
+  // Snapshot do nome no momento da compra.
+  nomeProduto String
+  tamanho     String?
+
+  tipo       EncomendaItemTipo
+  varianteId Int?
+  variante   VarianteProduto? @relation(fields: [varianteId], references: [id], onDelete: SetNull)
+  @@index([varianteId])
+
+  encomendaId String
+  encomenda   Encomenda @relation(fields: [encomendaId], references: [id], onDelete: Cascade)
+
+  produtoId Int?
+  produto   Produto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+
+  packId Int?
+  pack   Pack? @relation(fields: [packId], references: [id], onDelete: SetNull)
+
+  componentes EncomendaItemComponente[]
+
+  @@index([encomendaId])
+  @@index([produtoId])
+  @@index([packId])
+  @@map("encomenda_itens")
+}
+
+// ============================================================
+// LOJA — SNAPSHOT DOS COMPONENTES DOS PACKS
+// ============================================================
+
+model EncomendaItemComponente {
+  id Int @id @default(autoincrement())
+
+  nomeProduto String
+  tamanho     String?
+  quantidade  Int     @default(1)
+
+  itemId Int
+  item   EncomendaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  produtoId Int?
+  produto   Produto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+
+  @@index([itemId])
+  @@index([produtoId])
+  @@map("encomenda_item_componentes")
+}

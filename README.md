@@ -34,3 +34,31 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+
+src/
+│
+├── app/                    # Routing e páginas Next.js
+│   ├── (public)/           # Área pública
+│   ├── (auth)/             # Login e autenticação
+│   ├── admin/              # Área administrativa
+│   ├── layout.tsx          # Root layout
+│   └── globals.css
+│
+├── components/             # Componentes visuais
+│   ├── public/
+│   ├── admin/
+│   └── shared/
+│
+├── services/               # Data Access Layer
+│   ├── admin/
+│   ├── public/
+│   └── auth/
+│
+├── lib/                    # Infraestrutura e utilitários
+│   ├── auth.ts
+│   ├── permissions.ts
+│   └── prisma.ts
+│
+└── types/                  # Tipos TypeScript
